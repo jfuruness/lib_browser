@@ -11,3 +11,4 @@ __email__ = "jfuruness@gmail.com"
 __status__ = "Development"
 
 from .browser import Browser
+from .discord_browser import Discord_Browser

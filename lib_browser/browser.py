@@ -14,6 +14,10 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from lib_utils import utils
+
+from .side import Side
+
 class Browser:
     driver_path = os.path.join(expanduser("~"), "/tmp/chromedriver")
 
@@ -27,23 +31,19 @@ class Browser:
     def url(self):
         return self.browser.current_url
 
-    def open(self, side=None):
+    def open(self, side=Side.LEFT):
         width, height = self._get_dims()
         if side in [Side.LEFT, Side.RIGHT]:
-            # Get chrome options
-            opts = Options()
-
-            # Set new width and hieght
-            new_width = width // 2
-            new_height = int(height * .9)
-            # https://stackoverflow.com/a/37151037/8903959
-            opts.add_argument(f"--window-size={new_width},{new_height}")
-
-            # Set new position
-            if side == Side.LEFT:
-                opts.add_argument("--window-position=0,0")
-            elif side == Side.RIGHT:
-                opts.add_argument(f"--window-position={new_width + 1},0")
+            width = width // 2
+        # Get chrome options
+        opts = Options()
+        # https://stackoverflow.com/a/37151037/8903959
+        opts.add_argument(f"--window-size={width},{int(height * .9) }")
+        # Set new position
+        if side in [Side.LEFT, Side.CENTER]:
+            opts.add_argument("--window-position=0,0")
+        elif side == Side.RIGHT:
+            opts.add_argument(f"--window-position={new_width + 1},0")
         else:
             assert False, "Not implimented"
             
@@ -72,6 +72,29 @@ class Browser:
             print(str(_id) + str(name) + str(tag) + str(xpath))
             print(e)
 
+        # DO NOT DELETE: This is the new version for selenium
+        # However, it appears to have bugs
+        # Bugs related to selenium that is, not in my code
+        """
+        if plural:
+            find_func = self.browser.find_elements
+        else:
+            find_func = self.browser.find_element
+        try:
+            if _id:
+                find_func(By.ID, _id)
+            elif name:
+                find_func(By.NAME, name)
+            elif tag:
+                find_func(By.TAG_NAME, tag)
+            elif xpath:
+                find_func(By.XPATH, xpath)
+        except Exception as e:
+            print(str(_id) + str(name) + str(tag) + str(xpath))
+            print(e)
+            raise e
+        """
+
     def get_clickable(self, tries=5):
         try:
             a_tags = self.get_el(tag="a", plural=True)
@@ -87,9 +110,12 @@ class Browser:
             
             return [elem for elem in clickables if self.valid_elem(elem)]
         # Sometimes in the middle of this elements dissapear so we must retry
-        except selenium.common.exceptions.StaleElementReferenceException:
-            time.sleep(.1)
-            return self.get_clickable(tries - 1)
+        except selenium.common.exceptions.StaleElementReferenceException as e:
+            if tries > 0:
+                time.sleep(.1)
+                return self.get_clickable(tries - 1)
+            else:
+                raise e
 
     def valid_elem(self, elem):
         if elem.is_displayed() and elem.is_enabled():
@@ -98,20 +124,7 @@ class Browser:
             return False
 
     def add_number(self, num, elem):
-        if elem.get_attribute("type").lower() in ["submit", "button"]:
-            return self.add_number_to_button(num, elem)
-        elif elem.get_attribute("type").lower() == "radio":
-            return self.add_number_to_radio(num, elem)
-        else:
-            return self.add_number_to_elem(num, elem)
-
-    def add_number_to_radio(self, num, elem):
-        button = elem
-
-
         # https://stackoverflow.com/a/18079918
-        # https://www.edureka.co/community/4032/how-get-next-sibling-element-using-xpath-and-selenium-for-java
-#        parent_elem = elem.find_element_by_xpath("..")
         num_str = self._format_number(num)
         # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
         javascript_str = (f"var iii = document.createElement('i');"
@@ -122,75 +135,9 @@ class Browser:
                           "iii.style.color='blue';"
                           "iii.style.backgroundColor='green';"
                           f"arguments[{num}].before(iii);")
-#                          f"arguments[{num}].id='furuness_clickable_{num}'")
-#        if elem.get_attribute("id") == "menuPuller":
-#            javascript_str = javascript_str.replace("before", "after")
-        return (javascript_str, elem)
-
-
-
-
-
-        # https://stackoverflow.com/a/18079918
-        # https://www.edureka.co/community/4032/how-get-next-sibling-element-using-xpath-and-selenium-for-java
-#        parent_elem = button.find_element_by_xpath("..")
-        num_str = self._format_number(num)
-        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
-        javascript_str = (f"var text = document.createTextNode('{num_str}');"
-                          f"arguments[{num}].before(text);")
-        # https://stackoverflow.com/a/14052682
-        return javascript_str, button
-
-    def add_number_to_button(self, num, elem):
-        button = elem
-
-
-        # https://stackoverflow.com/a/18079918
-        # https://www.edureka.co/community/4032/how-get-next-sibling-element-using-xpath-and-selenium-for-java
-#        parent_elem = elem.find_element_by_xpath("..")
-        num_str = self._format_number(num)
-        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
-        javascript_str = (f"var iii = document.createElement('i');"
-                          f"var text = document.createTextNode('{num_str}');"
-                          "iii.appendChild(text);"
-                          f"iii.id = 'furuness_{num_str}';"
-                          "iii.setAttribute('name','furuness');"
-                          "iii.style.color='blue';"
-                          "iii.style.backgroundColor='green';"
-                          f"arguments[{num}].before(iii);")
-#                          f"arguments[{num}].id='furuness_clickable_{num}'")
-#        if elem.get_attribute("id") == "menuPuller":
-#            javascript_str = javascript_str.replace("before", "after")
-        return (javascript_str, elem)
-
-
-
-
-        button_value = button.get_attribute("value")
-        num_str = f"{self._format_number(num)}{button_value}"
-        return f"arguments[{num}].value = '{num_str}';", button
-
-    def add_number_to_elem(self, num, elem):
-        # https://stackoverflow.com/a/18079918
-        # https://www.edureka.co/community/4032/how-get-next-sibling-element-using-xpath-and-selenium-for-java
-#        parent_elem = elem.find_element_by_xpath("..")
-        num_str = self._format_number(num)
-        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
-        javascript_str = (f"var iii = document.createElement('i');"
-                          f"var text = document.createTextNode('{num_str}');"
-                          "iii.appendChild(text);"
-                          f"iii.id = 'furuness_{num_str}';"
-                          "iii.setAttribute('name','furuness');"
-                          "iii.style.color='blue';"
-                          "iii.style.backgroundColor='green';"
-                          f"arguments[{num}].before(iii);")
-#                          f"arguments[{num}].id='furuness_clickable_{num}'")
-#        if elem.get_attribute("id") == "menuPuller":
-#            javascript_str = javascript_str.replace("before", "after")
         return (javascript_str, elem)
 
     def remove_number(self, num, elem):
-        return
         remove_str = self._format_number(num)
         num_str = elem.text.replace(remove_str, "")
         self.browser.execute_script(f"arguments[0].innerText = '{num_str}'",
@@ -200,9 +147,11 @@ class Browser:
             self.browser.execute_script(f"arguments[0].value = '{num_str}'",
                                         elem)
 
-
     def _format_number(self, num):
         return f"__{num}__"
+
+    def _get_dims(self):
+        """Gets width and height of monitor"""
 
     def _get_dims(self):
         """Gets width and height of monitor"""
@@ -213,7 +162,8 @@ class Browser:
                                   stdout=subprocess.PIPE).communicate()[0]
         outputs = [x for x in output.decode('utf-8').split("\n") if x]
         if len(outputs) == 1:
-            return [int(x) for x in output.split("x")]
+            print(outputs)
+            return [int(x) for x in outputs[0].split("x")]
         elif len(outputs) == 2:
             res1, res2 = outputs
             res1x, res1y = [int(x) for x in res1.split("x")]
@@ -253,14 +203,6 @@ class Browser:
         self.scroll("down")
 
     def scroll(self, key, page=False):
-#        print(self.url)
-        # NOTE: Later potentially check which method worked based on scroll height of element!
-        # https://stackoverflow.com/a/24797425
-        # NOTE: FOR IMPROVEMENTS FOR LATER:
-        # The reason this prob doesn't work without clicking is due to iframe
-        # Simply switch out of iframe, scroll down, switch back
-#        self.attempt_to_click()
-
         if "pdf" not in self.url:
             print("trying javascript scroll")
             self.javascript_scroll(key, page)
@@ -270,10 +212,6 @@ class Browser:
         if "pdf" in self.url:
             # Must do twice
             self.attempt_to_click()
-#            print("Trying keys to body scroll")
-    #        self.send_keys_to_body_scroll(key, page)
-    #        if "--test" in sys.argv:
-    #            time.sleep(3)
             print("Trying type scroll")
             self.type_scroll(key, page)
             if "--test" in sys.argv:
@@ -305,8 +243,6 @@ class Browser:
             except:
                 print("out of bounds, can't click for scroll")
                 clicked = False
-#        if "google" in self.url:
-#            clicked = True
         try:
             width = self.browser.get_window_size()["height"]
             height = self.browser.get_window_size()["width"]
@@ -332,15 +268,7 @@ class Browser:
             else:
                 move = -200
         print("Executing window javascript scroll")
-#        scroll_hieght = self.browser.execute_script("return window.pageYOffset")
-        #self.browser.execute_script("window.scroll(" + f"{move},0)")
         self.browser.execute_script("window.scroll({top:" + f"window.pageYOffset + {move}" + ",left:0,behavior: 'smooth'})")
-        #self.browser.execute_script("scroll({top:" + f"{move}" + ",left:0,behavior: 'smooth'})")
-#        new_scroll_height = self.browser.execute_script("return window.pageYOffset")
-#        if scroll_hieght == new_scroll_height and retry:
-#            print("Scroll failed, attempting again")
-#            self.attempt_to_click()
-#            self.javascript_scroll(key, page, retry=False)
 
     def send_keys_to_body_scroll(self, key, page):
         el = self.get_el(tag="body")
@@ -414,7 +342,8 @@ class Browser:
         elif xpath:
             _type = By.XPATH
             identifier = xpath
-        self.wait(identifier, _type).send_keys(keys)
+        el = self.wait(identifier, _type)
+        el.send_keys(keys)
 
     def open_new_tab(self, url=""):
         self.browser.execute_script(f"window.open('{url}');")
@@ -443,9 +372,3 @@ class Browser:
                 # Switch to iframe, life is good
                 self.browser.switch_to.frame(frame)
             self.in_iframe = True
-
-
-class Side(Enum):
-    LEFT = "left"
-    RIGHT = "right"
-    CENTER = "center"
