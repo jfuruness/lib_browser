@@ -334,6 +334,14 @@ class Browser:
                 # Switch to iframe, life is good
                 self.browser.switch_to.frame(frame)
 
+    def click_number(self, number):
+        javascript = (f"""document.evaluate("""
+                      f""""//*[@id='{self.num_attr}_{num_str}']","""
+                      """ document, null, """
+                      """XPathResult.FIRST_ORDERED_NODE_TYPE,"""
+                      """ null).singleNodeValue.nextSibling.click();""")
+        self.browser.execute(javascript)
+
 ####################
 ### Helper Funcs ###
 ####################
@@ -353,11 +361,16 @@ class Browser:
         elems = []
         clickables = self._get_clickables()
         # Don't include these numbers, too similar to other words
-        nums_to_exclude = set([2, 4])
+        # Or they precede other words (ex: twenty one)
+        # If they precede and we search for 20 and 21, and they say 21,
+        # We would select 20 before waiting to hear the one
+        nums_to_exclude = set([2, 4, 20, 30, 40, 50, 60, 70, 80, 90])
         # Remove the nums to exclude
         nums_to_use = [x for x in 
                        range(len(clickables) + len(nums_to_exclude))
                        if x not in nums_to_exclude]
+        if len(clickables) >= 100:
+            logging.warning("Only can click up to 99, sorry")
         # Labeling of clickables
         for label_num, (i, el) in zip(nums_to_use, enumerate(clickables)):
             javascript_str, new_elem = self._add_number_to_el(label_num, i, el)
