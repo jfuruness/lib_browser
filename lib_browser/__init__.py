@@ -10,5 +10,9 @@ __maintainer__ = "Justin Furuness"
 __email__ = "jfuruness@gmail.com"
 __status__ = "Development"
 
+# Browsers
 from .browser import Browser
-from .discord_browser import Discord_Browser
+from .convenience_browser import Convenience_Browser
+
+# Side (left, right, center)
+from .side import Side

@@ -21,26 +21,27 @@ from .side import Side
 class Browser:
     driver_path = os.path.join(expanduser("~"), "/tmp/chromedriver")
 
-    def __init__(self):
+    def __init__(self, side=Side.LEFT):
         if not os.path.exists(self.driver_path):
             self.install()
         self.in_iframe = False
         self.pdf = False
+        self.side = side
 
     @property
     def url(self):
         return self.browser.current_url
 
-    def open(self, side=Side.LEFT):
+    def open(self):
         width, height = self._get_dims()
-        if side in [Side.LEFT, Side.RIGHT]:
+        if self.side in [Side.LEFT, Side.RIGHT]:
             width = width // 2
         # Get chrome options
         opts = Options()
         # https://stackoverflow.com/a/37151037/8903959
         opts.add_argument(f"--window-size={width},{int(height * .9) }")
         # Set new position
-        if side in [Side.LEFT, Side.CENTER]:
+        if self.side in [Side.LEFT, Side.CENTER]:
             opts.add_argument("--window-position=0,0")
         elif side == Side.RIGHT:
             opts.add_argument(f"--window-position={new_width + 1},0")
