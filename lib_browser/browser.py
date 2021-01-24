@@ -1,5 +1,6 @@
 import sys
 from enum import Enum
+import logging
 from os.path import expanduser
 import os
 import subprocess
@@ -15,6 +16,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import StaleElementReferenceException
 
+from selenium.webdriver.remote.remote_connection import LOGGER
+LOGGER.setLevel(logging.CRITICAL)
+
+from urllib3.connectionpool import log as urllibLogger
+urllibLogger.setLevel(logging.WARNING)
+
 from lib_utils import utils
 
 from .side import Side
@@ -24,16 +31,12 @@ class Browser:
 
     def __init__(self,
                  side=Side.LEFT,
-                 default_iframe=True,
-                 default_show_links=True):
+                 default_iframe=True):
         if not os.path.exists(self.driver_path):
             self.install()
 
-        self.in_iframe = False
         self.pdf = False
         self.default_iframe = default_iframe
-        self.default_show_links = default_show_links
-        self.currently_showing_links = False
         self.side = side
 
     @property
@@ -60,7 +63,6 @@ class Browser:
                                         chrome_options=opts)
     def get(self, url):
         self.browser.get(url)
-        self.show_links()
 
     def get_el(self, _id=None, name=None, tag=None, xpath=None, plural=False):
         try:
@@ -213,7 +215,6 @@ class Browser:
         except selenium.common.exceptions.MoveTargetOutOfBoundsException:
             print("out of bounds")
 
-        self.show_links()
 
     def javascript_scroll(self, key, page, retry=True):
         if key == "down":
@@ -290,7 +291,6 @@ class Browser:
             identifier = tag
         elem = self.wait(identifier, _type)
         elem.click()
-        self.show_links()
 
     def wait_send_keys(self, _id=None, name=None, xpath=None, keys="a"):
         if _id:
@@ -309,22 +309,20 @@ class Browser:
         self.browser.execute_script(f"window.open('{url}');")
         self.browser.switch_to.window(self.browser.window_handles[-1])
 
-    def show_links(self, show=False):
+    def show_links(self):
         if self.default_iframe:
             self.switch_to_iframe()
-        if self.default_show_links or show:
-            self.remove_links()
-            self._show_numbers()
-
-    def remove_links(self):
-        if self.currently_showing_links:
-            self._remove_numbers()
+        self._remove_numbers()
+        self._show_numbers()
 
     def switch_to_iframe(self):
+
+        self.browser.switch_to.default_content()
+
         iframe_links = {"https://lms.uconn.edu/ultra/courses":
                             "classic-learn-iframe",
                         "https://class.mimir.io/projects/":
-                            "main.pdf"}
+                            "main.pdf",
                         }
 
         # https://stackoverflow.com/a/24286392
@@ -335,7 +333,6 @@ class Browser:
                 frame = self.wait(iframe_name, By.NAME)
                 # Switch to iframe, life is good
                 self.browser.switch_to.frame(frame)
-            self.in_iframe = True
 
 ####################
 ### Helper Funcs ###
@@ -346,11 +343,10 @@ class Browser:
 ##########################
 
     def _remove_numbers(self):
-        javascript = (f"var ele = document.getElementsByName({self.num_attr});"
+        javascript = (f"var ele = document.getElementsByName('{self.num_attr}');"
                       "for(var i=ele.length-1;i>=0;i--)"
                       "{ele[i].parentNode.removeChild(ele[i]);}")
-        self.browser.execute_script(removal_javascript_str)
-        self.currently_showing_links = False
+        self.browser.execute_script(javascript)
 
     def _show_numbers(self):
         javascript_strs = []
@@ -363,36 +359,41 @@ class Browser:
                        range(len(clickables) + len(nums_to_exclude))
                        if x not in nums_to_exclude]
         # Labeling of clickables
-        for num, el in zip(nums_to_use, clickables):
-            javascript_str, elem = self.add_number_to_el(num, elem)
+        for label_num, (i, el) in zip(nums_to_use, enumerate(clickables)):
+            javascript_str, new_elem = self._add_number_to_el(label_num, i, el)
             javascript_strs.append(javascript_str)
-            elems.append(elem)
+            elems.append(new_elem)
         # Done all at once for speed
         self.browser.execute_script(" ".join(javascript_strs), *elems)
-        self.currently_showing_links = True
+        logging.debug("Done showing adding numbers")
 
     # Retries func a few times to acct for load times
     @utils.retry(err=StaleElementReferenceException, msg="clickables not found")
     def _get_clickables(self):
         a_tags = self.get_el(tag="a", plural=True)
         # https://stackoverflow.com/a/48365300/8903959
-        submit_buttons = self.get_el(xpath="//input[@type='submit']", plural=True)
-        other_buttons = self.get_el(xpath="//input[@type='button']", plural=True)
+        submit_buttons = self.get_el(xpath="//input[@type='submit']",
+                                     plural=True)
+        other_buttons = self.get_el(xpath="//input[@type='button']",
+                                    plural=True)
 
         standard_buttons = [x for x in submit_buttons + other_buttons
                             if (x.get_attribute("value")
+                                # Get rid of weird button google search page
                                 and "Lucky" not in x.get_attribute("value"))]
     
-        radio_buttons = self.get_el(xpath="//input[@type='radio']", plural=True)
+        radio_buttons = self.get_el(xpath="//input[@type='radio']",
+                                    plural=True)
 
         clickables = a_tags + standard_buttons + radio_buttons
 
         return [elem for elem in clickables if self.valid_elem(elem)]
 
-    def _add_number_to_el(self, num, elem):
+    def _add_number_to_el(self, label_num, true_num, elem):
         # https://stackoverflow.com/a/18079918
-        num_str = self._format_number(num)
-        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
+        num_str = self._format_number(label_num)
+ 
+        # https://www.quora.com/how-do-i-add-an-html-element-using-selenium-webdriver
         javascript_str = (f"var iii = document.createElement('i');"
                           f"var text = document.createTextNode('{num_str}');"
                           "iii.appendChild(text);"
@@ -400,8 +401,11 @@ class Browser:
                           f"iii.setAttribute('name','{self.num_attr}');"
                           "iii.style.color='blue';"
                           "iii.style.backgroundColor='green';"
-                          f"arguments[{num}].before(iii);")
+                          f"arguments[{true_num}].before(iii);")
         return javascript_str, elem
+
+    def _format_number(self, num):
+        return f"__{num}__"
 
     @property
     def num_attr(self):
