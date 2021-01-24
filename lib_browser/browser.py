@@ -54,8 +54,8 @@ class Browser:
         # Set new position
         if self.side in [Side.LEFT, Side.CENTER]:
             opts.add_argument("--window-position=0,0")
-        elif side == Side.RIGHT:
-            opts.add_argument(f"--window-position={new_width + 1},0")
+        elif self.side == Side.RIGHT:
+            opts.add_argument(f"--window-position={width + 1},0")
         else:
             assert False, "Not implimented"
             
@@ -313,7 +313,9 @@ class Browser:
         self.browser.execute_script(f"window.open('{url}');")
         self.browser.switch_to.window(self.browser.window_handles[-1])
 
-    def show_links(self):
+    def show_links(self, open_new=False):
+        if open_new:
+            self.open()
         if self.default_iframe:
             self.switch_to_iframe()
         self._remove_numbers()
@@ -335,11 +337,14 @@ class Browser:
                 self.browser.switch_to.frame(frame)
 
     def click_number(self, num):
-        num_str = self._format_number(num)
-        self.switch_to_iframe()
-        javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
-                      ".nextSibling.click();")
-        self.browser.execute_script(javascript)
+        try:
+            num_str = self._format_number(num)
+            self.switch_to_iframe()
+            javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
+                          ".nextSibling.click();")
+            self.browser.execute_script(javascript)
+        except selenium.common.exceptions.JavascriptException:
+            logging.warning("Javascript exception")
 
 ####################
 ### Helper Funcs ###
@@ -377,7 +382,10 @@ class Browser:
         # Or they precede other words (ex: twenty one)
         # If they precede and we search for 20 and 21, and they say 21,
         # We would select 20 before waiting to hear the one
-        nums_to_exclude = set([2, 4, 20, 30, 40, 50, 60, 70, 80, 90])
+        nums_to_exclude = set([1, 2, 4, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90,
+                               21, 31, 41, 51, 61, 71, 81, 91,
+                               22, 32, 42, 52, 62, 72, 82, 92,
+                               24, 34, 44, 54, 64, 74, 84, 94])
         # Remove the nums to exclude
         nums_to_use = [x for x in 
                        range(len(clickables) + len(nums_to_exclude))
