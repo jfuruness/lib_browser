@@ -13,6 +13,7 @@ from selenium.webdriver import ChromeOptions as Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import StaleElementReferenceException
 
 from lib_utils import utils
 
@@ -21,11 +22,18 @@ from .side import Side
 class Browser:
     driver_path = os.path.join(expanduser("~"), "/tmp/chromedriver")
 
-    def __init__(self, side=Side.LEFT):
+    def __init__(self,
+                 side=Side.LEFT,
+                 default_iframe=True,
+                 default_show_links=True):
         if not os.path.exists(self.driver_path):
             self.install()
+
         self.in_iframe = False
         self.pdf = False
+        self.default_iframe = default_iframe
+        self.default_show_links = default_show_links
+        self.currently_showing_links = False
         self.side = side
 
     @property
@@ -52,6 +60,7 @@ class Browser:
                                         chrome_options=opts)
     def get(self, url):
         self.browser.get(url)
+        self.show_links()
 
     def get_el(self, _id=None, name=None, tag=None, xpath=None, plural=False):
         try:
@@ -96,63 +105,11 @@ class Browser:
             raise e
         """
 
-    def get_clickable(self, tries=5):
-        try:
-            a_tags = self.get_el(tag="a", plural=True)
-            # https://stackoverflow.com/a/48365300/8903959
-            submit_buttons = self.get_el(xpath="//input[@type='submit']", plural=True)
-            other_buttons = self.get_el(xpath="//input[@type='button']", plural=True)
-            standard_buttons = [x for x in submit_buttons + other_buttons
-                                if (x.get_attribute("value")
-                                    and "Lucky" not in x.get_attribute("value"))]
-    
-            radio_buttons = self.get_el(xpath="//input[@type='radio']", plural=True)
-            clickables = a_tags + standard_buttons + radio_buttons
-            
-            return [elem for elem in clickables if self.valid_elem(elem)]
-        # Sometimes in the middle of this elements dissapear so we must retry
-        except selenium.common.exceptions.StaleElementReferenceException as e:
-            if tries > 0:
-                time.sleep(.1)
-                return self.get_clickable(tries - 1)
-            else:
-                raise e
-
     def valid_elem(self, elem):
         if elem.is_displayed() and elem.is_enabled():
             return True
         else:
             return False
-
-    def add_number(self, num, elem):
-        # https://stackoverflow.com/a/18079918
-        num_str = self._format_number(num)
-        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
-        javascript_str = (f"var iii = document.createElement('i');"
-                          f"var text = document.createTextNode('{num_str}');"
-                          "iii.appendChild(text);"
-                          f"iii.id = 'furuness_{num_str}';"
-                          "iii.setAttribute('name','furuness');"
-                          "iii.style.color='blue';"
-                          "iii.style.backgroundColor='green';"
-                          f"arguments[{num}].before(iii);")
-        return (javascript_str, elem)
-
-    def remove_number(self, num, elem):
-        remove_str = self._format_number(num)
-        num_str = elem.text.replace(remove_str, "")
-        self.browser.execute_script(f"arguments[0].innerText = '{num_str}'",
-                                    elem)
-        if elem.get_attribute("type").lower() in ["submit", "button"]:
-            num_str = elem.get_attribute("value").replace(remove_str, "")
-            self.browser.execute_script(f"arguments[0].value = '{num_str}'",
-                                        elem)
-
-    def _format_number(self, num):
-        return f"__{num}__"
-
-    def _get_dims(self):
-        """Gets width and height of monitor"""
 
     def _get_dims(self):
         """Gets width and height of monitor"""
@@ -163,7 +120,6 @@ class Browser:
                                   stdout=subprocess.PIPE).communicate()[0]
         outputs = [x for x in output.decode('utf-8').split("\n") if x]
         if len(outputs) == 1:
-            print(outputs)
             return [int(x) for x in outputs[0].split("x")]
         elif len(outputs) == 2:
             res1, res2 = outputs
@@ -257,6 +213,8 @@ class Browser:
         except selenium.common.exceptions.MoveTargetOutOfBoundsException:
             print("out of bounds")
 
+        self.show_links()
+
     def javascript_scroll(self, key, page, retry=True):
         if key == "down":
             if page:
@@ -286,7 +244,7 @@ class Browser:
                     send = Keys.ARROW_UP
             el.send_keys(send)
 
-    def type_scroll(self, key, page):
+    def type_scroll(self, key, page=False):
         keyboard = Controller()
         if key=="down" and page:
             key_types = "page_down"
@@ -332,6 +290,7 @@ class Browser:
             identifier = tag
         elem = self.wait(identifier, _type)
         elem.click()
+        self.show_links()
 
     def wait_send_keys(self, _id=None, name=None, xpath=None, keys="a"):
         if _id:
@@ -350,18 +309,22 @@ class Browser:
         self.browser.execute_script(f"window.open('{url}');")
         self.browser.switch_to.window(self.browser.window_handles[-1])
 
-    def switch_to_iframe(self, iframe=True):
-        # Switches in and out of iframe
-        if self.in_iframe:
-            self.browser.switch_to.default_content()
-            self.in_iframe = False
-        if iframe is False:
-            return
+    def show_links(self, show=False):
+        if self.default_iframe:
+            self.switch_to_iframe()
+        if self.default_show_links or show:
+            self.remove_links()
+            self._show_numbers()
 
+    def remove_links(self):
+        if self.currently_showing_links:
+            self._remove_numbers()
+
+    def switch_to_iframe(self):
         iframe_links = {"https://lms.uconn.edu/ultra/courses":
                             "classic-learn-iframe",
-#                        "https://class.mimir.io/projects/":
-#                            "main.pdf"}
+                        "https://class.mimir.io/projects/":
+                            "main.pdf"}
                         }
 
         # https://stackoverflow.com/a/24286392
@@ -373,3 +336,73 @@ class Browser:
                 # Switch to iframe, life is good
                 self.browser.switch_to.frame(frame)
             self.in_iframe = True
+
+####################
+### Helper Funcs ###
+####################
+
+##########################
+### Show Links Helpers ###
+##########################
+
+    def _remove_numbers(self):
+        javascript = (f"var ele = document.getElementsByName({self.num_attr});"
+                      "for(var i=ele.length-1;i>=0;i--)"
+                      "{ele[i].parentNode.removeChild(ele[i]);}")
+        self.browser.execute_script(removal_javascript_str)
+        self.currently_showing_links = False
+
+    def _show_numbers(self):
+        javascript_strs = []
+        elems = []
+        clickables = self._get_clickables()
+        # Don't include these numbers, too similar to other words
+        nums_to_exclude = set([2, 4])
+        # Remove the nums to exclude
+        nums_to_use = [x for x in 
+                       range(len(clickables) + len(nums_to_exclude))
+                       if x not in nums_to_exclude]
+        # Labeling of clickables
+        for num, el in zip(nums_to_use, clickables):
+            javascript_str, elem = self.add_number_to_el(num, elem)
+            javascript_strs.append(javascript_str)
+            elems.append(elem)
+        # Done all at once for speed
+        self.browser.execute_script(" ".join(javascript_strs), *elems)
+        self.currently_showing_links = True
+
+    # Retries func a few times to acct for load times
+    @utils.retry(err=StaleElementReferenceException, msg="clickables not found")
+    def _get_clickables(self):
+        a_tags = self.get_el(tag="a", plural=True)
+        # https://stackoverflow.com/a/48365300/8903959
+        submit_buttons = self.get_el(xpath="//input[@type='submit']", plural=True)
+        other_buttons = self.get_el(xpath="//input[@type='button']", plural=True)
+
+        standard_buttons = [x for x in submit_buttons + other_buttons
+                            if (x.get_attribute("value")
+                                and "Lucky" not in x.get_attribute("value"))]
+    
+        radio_buttons = self.get_el(xpath="//input[@type='radio']", plural=True)
+
+        clickables = a_tags + standard_buttons + radio_buttons
+
+        return [elem for elem in clickables if self.valid_elem(elem)]
+
+    def _add_number_to_el(self, num, elem):
+        # https://stackoverflow.com/a/18079918
+        num_str = self._format_number(num)
+        # https://www.quora.com/How-do-I-add-an-HTML-element-using-Selenium-WebDriver
+        javascript_str = (f"var iii = document.createElement('i');"
+                          f"var text = document.createTextNode('{num_str}');"
+                          "iii.appendChild(text);"
+                          f"iii.id = '{self.num_attr}_{num_str}';"
+                          f"iii.setAttribute('name','{self.num_attr}');"
+                          "iii.style.color='blue';"
+                          "iii.style.backgroundColor='green';"
+                          f"arguments[{num}].before(iii);")
+        return javascript_str, elem
+
+    @property
+    def num_attr(self):
+        return "furuness"

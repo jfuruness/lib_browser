@@ -1,3 +1,5 @@
+import time
+
 from lib_config import Config
 
 from .browser import Browser
