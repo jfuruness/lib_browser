@@ -61,6 +61,11 @@ class Browser:
             
         self.browser = webdriver.Chrome(executable_path=self.driver_path,
                                         chrome_options=opts)
+
+    def close(self):
+        self.browser.close()
+        self.browser.quit()
+
     def get(self, url):
         self.browser.get(url)
 
@@ -80,9 +85,8 @@ class Browser:
                     return self.browser.find_elements_by_xpath(xpath)
                 else:
                     return self.browser.find_element_by_xpath(xpath)
-        except Exception as e:
-            print(str(_id) + str(name) + str(tag) + str(xpath))
-            print(e)
+        except selenium.common.exceptions.NoSuchElementException as e:
+            logging.debug("Can't find element")
 
         # DO NOT DELETE: This is the new version for selenium
         # However, it appears to have bugs
@@ -316,8 +320,32 @@ class Browser:
         self._show_numbers()
 
     def switch_to_iframe(self):
-
         self.browser.switch_to.default_content()
+        iframe_name = self._get_iframe_name()
+        if iframe_name:
+            # Everything from here on in operates from within an iframe
+            # Wait for iframe to load
+            frame = self.wait(iframe_name, By.NAME)
+            # Switch to iframe, life is good
+            self.browser.switch_to.frame(frame)
+        # Done like this for speed
+        else:
+            frame = self.get_el(tag="iframe")
+            if frame:
+                self.browser.switch_to.frame(frame)
+
+    def click_number(self, num):
+        num_str = self._format_number(num)
+        self.switch_to_iframe()
+        javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
+                      ".nextSibling.click();")
+        self.browser.execute_script(javascript)
+
+####################
+### Helper Funcs ###
+####################
+
+    def _get_iframe_name(self):
 
         iframe_links = {"https://lms.uconn.edu/ultra/courses":
                             "classic-learn-iframe",
@@ -328,23 +356,8 @@ class Browser:
         # https://stackoverflow.com/a/24286392
         for iframe_link, iframe_name in iframe_links.items():
             if iframe_link in self.url:
-                # Everything from here on in operates from within an iframe
-                # Wait for iframe to load
-                frame = self.wait(iframe_name, By.NAME)
-                # Switch to iframe, life is good
-                self.browser.switch_to.frame(frame)
+                return iframe_name
 
-    def click_number(self, number):
-        javascript = (f"""document.evaluate("""
-                      f""""//*[@id='{self.num_attr}_{num_str}']","""
-                      """ document, null, """
-                      """XPathResult.FIRST_ORDERED_NODE_TYPE,"""
-                      """ null).singleNodeValue.nextSibling.click();""")
-        self.browser.execute(javascript)
-
-####################
-### Helper Funcs ###
-####################
 
 ##########################
 ### Show Links Helpers ###
