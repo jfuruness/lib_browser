@@ -66,8 +66,24 @@ class Browser:
         self.browser.close()
         self.browser.quit()
 
+    def maximize(self):
+        self.browser.maximize_window()
+
     def get(self, url):
         self.browser.get(url)
+
+    def back(self):
+        self.browser.back()
+
+    def accept_pop_up(self):
+        try:
+            self.browser.switch_to.alert.accept()
+        except Exception as e:
+            keyboard = Controller()
+            keyboard.press(Key.enter)
+            keyboard.release(Key.enter)
+
+        self.switch_to_iframe()
 
     def get_el(self, _id=None, name=None, tag=None, xpath=None, plural=False):
         try:
@@ -291,7 +307,7 @@ class Browser:
             _type = By.XPATH
             identifier = xpath
         elif tag:
-            _type = By.TAG
+            _type = By.TAG_NAME
             identifier = tag
         elem = self.wait(identifier, _type)
         elem.click()
