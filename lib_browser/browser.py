@@ -398,7 +398,7 @@ class Browser:
         # Or they precede other words (ex: twenty one)
         # If they precede and we search for 20 and 21, and they say 21,
         # We would select 20 before waiting to hear the one
-        nums_to_exclude = set([1, 2, 4, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90,
+        nums_to_exclude = set([1, 2, 4, 6, 7, 8, 9, 10, 11, 13, 14, 20, 30, 40, 50, 60, 70, 80, 90,
                                21, 31, 41, 51, 61, 71, 81, 91,
                                22, 32, 42, 52, 62, 72, 82, 92,
                                24, 34, 44, 54, 64, 74, 84, 94])
