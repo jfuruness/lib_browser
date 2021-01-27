@@ -329,6 +329,15 @@ class Browser:
         self.browser.execute_script(f"window.open('{url}');")
         self.browser.switch_to.window(self.browser.window_handles[-1])
 
+    # https://stackoverflow.com/a/51893230/8903959
+    def tab_over(self):
+        current_handle = self.browser.current_window_handle
+        i = self.browser.window_handles.index(current_handle)
+        switch_index = 0 if i + 1 >= self.browser.window_handles else i + 1
+        if len(self.browser.window_handles) >= 2:
+            self.browser.switch_to_window(self.window_handles[switch_index])
+            
+
     def show_links(self, open_new=False):
         if open_new:
             self.open()
