@@ -196,6 +196,20 @@ class Browser:
             if "--test" in sys.argv:
                 time.sleep(3)
 
+    def click_latest_download(self):
+        try:
+            # open
+            # two tabs
+            # enter
+            width = self.browser.get_window_size()["height"]
+            height = self.browser.get_window_size()["width"]
+            action = webdriver.common.action_chains.ActionChains(self.browser)
+            action = action.move_by_offset(5, height - 5)
+            action = action.click()
+            action.perform()
+        except Exception as e:
+            raise e
+
     def attempt_to_click(self):
         try:
             el = self.get_el(tag="body")
@@ -331,12 +345,15 @@ class Browser:
 
     # https://stackoverflow.com/a/51893230/8903959
     def tab_over(self):
-        current_handle = self.browser.current_window_handle
-        i = self.browser.window_handles.index(current_handle)
-        switch_index = 0 if i + 1 >= self.browser.window_handles else i + 1
         if len(self.browser.window_handles) >= 2:
-            self.browser.switch_to_window(self.window_handles[switch_index])
-            
+            try:
+                current_handle = self.browser.current_window_handle
+                i = self.browser.window_handles.index(current_handle)
+                switch_index = 0 if i + 1 >= len(self.browser.window_handles) else i + 1
+                self.browser.switch_to.window(self.browser.window_handles[switch_index])
+            except Exception as e:
+                print(e)
+                
 
     def show_links(self, open_new=False):
         if open_new:
@@ -355,6 +372,10 @@ class Browser:
             frame = self.wait(iframe_name, By.NAME)
             # Switch to iframe, life is good
             self.browser.switch_to.frame(frame)
+            # Switch to inner frame if available
+            inner_frame = self.get_el(tag="iframe")
+            if inner_frame:
+                self.browser.switch_to.frame(inner_frame)
         # Done like this for speed
         else:
             frame = self.get_el(tag="iframe")
@@ -367,6 +388,8 @@ class Browser:
             self.switch_to_iframe()
             javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
                           ".nextSibling.click();")
+            logging.debug(javascript)
+            print(javascript)
             self.browser.execute_script(javascript)
         except selenium.common.exceptions.JavascriptException:
             logging.warning("Javascript exception")
@@ -403,6 +426,7 @@ class Browser:
         javascript_strs = []
         elems = []
         clickables = self._get_clickables()
+        print([x.text for x in clickables])
         # Don't include these numbers, too similar to other words
         # Or they precede other words (ex: twenty one)
         # If they precede and we search for 20 and 21, and they say 21,
@@ -433,19 +457,25 @@ class Browser:
         # https://stackoverflow.com/a/48365300/8903959
         submit_buttons = self.get_el(xpath="//input[@type='submit']",
                                      plural=True)
-        other_buttons = self.get_el(xpath="//input[@type='button']",
+        input_buttons = self.get_el(xpath="//input[@type='button']",
                                     plural=True)
 
-        standard_buttons = [x for x in submit_buttons + other_buttons
+        other_buttons = self.get_el(tag="button", plural=True)
+
+        buttons = submit_buttons + other_buttons + input_buttons
+
+        standard_buttons = [x for x in buttons
                             if (x.get_attribute("value")
                                 # Get rid of weird button google search page
-                                and "Lucky" not in x.get_attribute("value"))]
+                                and "Lucky" not in x.get_attribute("value")
+                                ) or not x.get_attribute("value")]
     
         radio_buttons = self.get_el(xpath="//input[@type='radio']",
                                     plural=True)
 
         clickables = a_tags + standard_buttons + radio_buttons
-
+        print([x.text for x in clickables])
+        print([x.text for x in clickables if self.valid_elem(x)])
         return [elem for elem in clickables if self.valid_elem(elem)]
 
     def _add_number_to_el(self, label_num, true_num, elem):
