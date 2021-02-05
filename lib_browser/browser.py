@@ -85,7 +85,13 @@ class Browser:
 
         self.switch_to_iframe()
 
-    def get_el(self, _id=None, name=None, tag=None, xpath=None, plural=False):
+    def get_el(self,
+               _id=None,
+               name=None,
+               tag=None,
+               xpath=None,
+               aria_label=None,
+               plural=False):
         try:
             if _id:
                 return self.browser.find_element_by_id(_id)
@@ -101,6 +107,12 @@ class Browser:
                     return self.browser.find_elements_by_xpath(xpath)
                 else:
                     return self.browser.find_element_by_xpath(xpath)
+            elif aria_label:
+                css = f"[aria-label='{aria_label}']"
+                if plural:
+                    return self.browser.find_elements_by_css_selector(css)
+                else:
+                    return self.browser.find_element_by_css_selector(css)
         except selenium.common.exceptions.NoSuchElementException as e:
             logging.debug("Can't find element")
 
@@ -182,13 +194,13 @@ class Browser:
         self.scroll("down")
 
     def scroll(self, key, page=False):
-        if "pdf" not in self.url:
+        print(self.url)
+        if "pdf" not in self.url and "chrome://downloads/" not in self.url:
             print("trying javascript scroll")
             self.javascript_scroll(key, page)
             if "--test" in sys.argv:
                 time.sleep(3)
-
-        if "pdf" in self.url:
+        elif "pdf" in self.url or "chrome://downloads/" in self.url:
             # Must do twice
             self.attempt_to_click()
             print("Trying type scroll")
@@ -196,17 +208,20 @@ class Browser:
             if "--test" in sys.argv:
                 time.sleep(3)
 
-    def click_latest_download(self):
+    def click_latest_download(self, retry=True):
         try:
-            # open
-            # two tabs
-            # enter
-            width = self.browser.get_window_size()["height"]
-            height = self.browser.get_window_size()["width"]
-            action = webdriver.common.action_chains.ActionChains(self.browser)
-            action = action.move_by_offset(5, height - 5)
-            action = action.click()
-            action.perform()
+            og_url = self.url
+            self.get("chrome://downloads/")
+            keyboard = Controller()
+            time.sleep(1)
+            for key in [Key.tab, Key.tab, Key.enter]:
+                time.sleep(.25)
+                keyboard.press(key)
+                keyboard.release(key)
+            self.switch_to_iframe()
+            if og_url == self.url and retry:
+                self.attempt_to_click()
+                self.click_latest_download(retry=False)
         except Exception as e:
             raise e
 
@@ -426,7 +441,6 @@ class Browser:
         javascript_strs = []
         elems = []
         clickables = self._get_clickables()
-        print([x.text for x in clickables])
         # Don't include these numbers, too similar to other words
         # Or they precede other words (ex: twenty one)
         # If they precede and we search for 20 and 21, and they say 21,
@@ -474,8 +488,8 @@ class Browser:
                                     plural=True)
 
         clickables = a_tags + standard_buttons + radio_buttons
-        print([x.text for x in clickables])
-        print([x.text for x in clickables if self.valid_elem(x)])
+        #print([x.text for x in clickables])
+        #print([x.text for x in clickables if self.valid_elem(x)])
         return [elem for elem in clickables if self.valid_elem(elem)]
 
     def _add_number_to_el(self, label_num, true_num, elem):
