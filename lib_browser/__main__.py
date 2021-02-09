@@ -15,7 +15,7 @@ from logging import DEBUG
 from sys import argv
 
 from .assistant import Assistant
-from .utils import config_logging
+from lib_utils.print_funcs import config_logging
 
 
 def main():

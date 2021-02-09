@@ -22,7 +22,7 @@ LOGGER.setLevel(logging.CRITICAL)
 from urllib3.connectionpool import log as urllibLogger
 urllibLogger.setLevel(logging.WARNING)
 
-from lib_utils import utils
+from lib_utils.helper_funcs import run_cmds, retry
 
 from .side import Side
 
@@ -177,7 +177,7 @@ class Browser:
                "chromedriver_linux64.zip && "
                "unzip /tmp/chromedriver.zip "
                f"chromedriver -d {'/'.join(self.driver_path.split('/')[:-1])};")
-        utils.run_cmds(cmd)
+        run_cmds(cmd)
 
     def scroll_up(self):
         self.scroll("up")
@@ -399,6 +399,8 @@ class Browser:
 
     def click_number(self, num):
         try:
+            num_windows = len(self.browser.window_handles)
+
             num_str = self._format_number(num)
             self.switch_to_iframe()
             javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
@@ -406,6 +408,9 @@ class Browser:
             logging.debug(javascript)
             print(javascript)
             self.browser.execute_script(javascript)
+            if len(self.browser.window_handles) != num_windows:
+                self.browser.switch_to.window(self.browser.window_handles[-1])
+                self.show_links()
         except selenium.common.exceptions.JavascriptException:
             logging.warning("Javascript exception")
 
@@ -465,7 +470,7 @@ class Browser:
         logging.debug("Done showing adding numbers")
 
     # Retries func a few times to acct for load times
-    @utils.retry(err=StaleElementReferenceException, msg="clickables not found")
+    @retry(err=StaleElementReferenceException, msg="clickables not found")
     def _get_clickables(self):
         a_tags = self.get_el(tag="a", plural=True)
         # https://stackoverflow.com/a/48365300/8903959

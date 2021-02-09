@@ -11,8 +11,10 @@ setup(
     download_url='https://github.com/jfuruness/lib_browser.git',
     keywords=['Furuness', 'Browser', 'Wrapper', 'Selenium Wrapper'],
     install_requires=[
+        'lib_config',
+        'lib_utils',
         'pynput',
-        'selenium'
+        'selenium',
     ],
     classifiers=[
         'Environment :: Console',
