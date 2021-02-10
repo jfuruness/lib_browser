@@ -7,17 +7,18 @@ from lib_config import Config
 
 from .browser import Browser
 
-class Convenience_Browser(Browser):
+
+class ConvenienceBrowser(Browser):
     """Browser with funcs for random websites"""
 
     def __init__(self, *args, **kwargs):
-        super(Convenience_Browser, self).__init__(*args, **kwargs)
+        super(ConvenienceBrowser, self).__init__(*args, **kwargs)
         self.set_discord_init_attrs()
         self.set_blackboard_init_attrs()
         self.set_ice_man_init_attrs()
 
     def close(self, *args, **kwargs):
-        super(Convenience_Browser, self).close(*args, **kwargs)
+        super(ConvenienceBrowser, self).close(*args, **kwargs)
         self.set_discord_close_attrs()
         self.set_blackboard_close_attrs()
         self.set_ice_man_init_attrs()
@@ -128,13 +129,8 @@ class Convenience_Browser(Browser):
     def ice_man_login(self):
         email, password = Config().ice_man_creds()
         time.sleep(1)
-        # Remove popup
-        keyboard = Controller()
-        keyboard.press(Key.tab)
-        keyboard.release(Key.tab)
-        keyboard.press(Key.enter)
-        keyboard.release(Key.enter)
-        # self.wait_click(_id="agree_button")
+        # Removes popup
+        self.type_keys([Key.tab, Key.enter])
         self.wait_send_keys(name="email", keys=email)
         self.wait_send_keys(name="password", keys=password)
         self.wait_click(xpath="//input[@type='submit']")
