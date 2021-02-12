@@ -25,6 +25,7 @@ from urllib3.connectionpool import log as urllibLogger
 from lib_utils.helper_funcs import run_cmds, retry
 from lib_utils.print_funcs import print_err
 
+from .helpers import switch_to_window
 from .side import Side
 
 # Loggers for selenium and url lib, which we do not want
@@ -94,9 +95,9 @@ class Browser:
     def page_down(self):
         self._scroll(Key.page_down)
 
+    @switch_to_window()
     def open_new_tab(self, url=""):
         self.browser.execute_script(f"window.open('{url}');")
-        self.browser.switch_to.window(self.browser.window_handles[-1])
 
     # https://stackoverflow.com/a/51893230/8903959
     @print_err(Exception)
@@ -150,34 +151,26 @@ class Browser:
             inner_frame = self.get_el(tag="iframe")
             if inner_frame:
                 self.browser.switch_to.frame(inner_frame)
-        # Done like this for speed
-        else:
-            frame = self.get_el(tag="iframe")
-            if frame:
-                self.browser.switch_to.frame(frame)
+        # unfortuately some iframes are worthless so do not include
 
     @print_err(JavascriptException)
+    @switch_to_window()
     def click_number(self, num):
-        num_windows = len(self.browser.window_handles)
-
         num_str = self._format_number(num)
         self.switch_to_iframe()
         javascript = (f"document.getElementById('{self.num_attr}_{num_str}')"
                       ".nextSibling.click();")
         logging.info(javascript)
         self.browser.execute_script(javascript)
-        if len(self.browser.window_handles) != num_windows:
-            self.browser.switch_to.window(self.browser.window_handles[-1])
-            self.show_links()
 
     @print_err(Exception, "Failed to click latest download: {}")
+    @switch_to_window()
     def click_latest_download(self, retry=True):
-        og_url = self.url
+        og_source = self.browser.page_source
         self.get("chrome://downloads/")
         time.sleep(1)
         self.type_keys([Key.tab, Key.tab, Key.enter])
-        self.switch_to_iframe()
-        if og_url == self.url and retry:
+        if og_source == self.browser.page_source and retry:
             self._attempt_to_click()
             self.click_latest_download(retry=False)
 
@@ -254,6 +247,15 @@ class Browser:
         el = self.wait(identifier, _type)
         el.send_keys(keys)
 
+    def remove_elements_by_tag(self, tag):
+        # https://stackoverflow.com/a/14003629/8903959
+        javascript = ("var element = "
+                      f"document.getElementsByTagName('{tag}'), index;"
+                      "for (index = element.length - 1; index >= 0; index--) {"
+                      "element[index].parentNode.removeChild(element[index]);"
+                      "}")
+        self.browser.execute_script(javascript)
+
 ####################
 ### Helper Funcs ###
 ####################
@@ -323,7 +325,7 @@ class Browser:
         if "pdf" not in self.url and "chrome://downloads/" not in self.url:
             self._javascript_scroll(key)
         elif "pdf" in self.url or "chrome://downloads/" in self.url:
-            self.type_scroll(key)
+            self._type_scroll(key)
 
     def _javascript_scroll(self, key, retry=True):
         move_dict = {Key.down: 200,
@@ -392,6 +394,7 @@ class Browser:
                       "{ele[i].parentNode.removeChild(ele[i]);}")
         self.browser.execute_script(javascript)
 
+    @retry(JavascriptException, tries=2, msg="Javascript err: {}", sleep=1)
     def _show_numbers(self):
         javascript_strs = []
         elems = []
@@ -456,8 +459,9 @@ class Browser:
                           "iii.appendChild(text);"
                           f"iii.id = '{self.num_attr}_{num_str}';"
                           f"iii.setAttribute('name','{self.num_attr}');"
-                          "iii.style.color='blue';"
-                          "iii.style.backgroundColor='green';"
+                          "iii.style.color='white';"
+                          "iii.style.backgroundColor='black';"
+                          "iii.style.order=100;"
                           f"arguments[{true_num}].before(iii);")
         return javascript_str, elem
 
