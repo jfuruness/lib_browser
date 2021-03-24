@@ -1,3 +1,5 @@
+"""Sides that the browser can open on"""
+
 from enum import Enum
 
 

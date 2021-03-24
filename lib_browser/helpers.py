@@ -3,6 +3,7 @@
 from copy import deepcopy
 import functools
 
+
 def switch_to_window():
     """Switches to new window after func if possible"""
     def my_decorator(func):

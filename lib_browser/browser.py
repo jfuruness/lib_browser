@@ -21,7 +21,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.remote.remote_connection import LOGGER
 from urllib3.connectionpool import log as urllibLogger
 
-
+from lib_utils.file_funcs import delete_paths
 from lib_utils.helper_funcs import run_cmds, retry
 from lib_utils.print_funcs import print_err
 
@@ -50,17 +50,8 @@ class Browser:
     def install(self):
         """Installs chromedriver to driverpath"""
 
-        path = '/'.join(self.driver_path.split('/')[:-1])
-
-        # https://gist.github.com/mikesmullin/2636776#gistcomment-2608206
-        cmd = ("LATEST_VERSION=$(curl -s "
-               "https://chromedriver.storage.googleapis.com/LATEST_RELEASE) &&"
-               " wget -O /tmp/chromedriver.zip "
-               "https://chromedriver.storage.googleapis.com/$LATEST_VERSION/"
-               "chromedriver_linux64.zip && "
-               "unzip /tmp/chromedriver.zip "
-               f"chromedriver -d {path};")
-        run_cmds(cmd)
+        self._install_google_chrome()
+        self._install_chromedriver()
 
     @property
     def url(self):
@@ -218,7 +209,7 @@ class Browser:
         wait = WebDriverWait(self.browser, 10)
         return wait.until(EC.element_to_be_clickable((_type, identifier)))
 
-    def wait_click(self, _id=None, name=None, xpath=None, tag=None):
+    def wait_click(self, _id=None, name=None, xpath=None, tag=None, _class=None):
         if _id:
             _type = By.ID
             identifier = _id
@@ -231,6 +222,9 @@ class Browser:
         elif tag:
             _type = By.TAG_NAME
             identifier = tag
+        elif _class:
+            _type = By.CLASS_NAME
+            identifier = _class
         elem = self.wait(identifier, _type)
         elem.click()
 
@@ -272,6 +266,44 @@ class Browser:
         for iframe_link, iframe_name in iframe_links.items():
             if iframe_link in self.url:
                 return iframe_name
+
+############################
+### Install Helper Funcs ###
+############################
+
+    def _install_google_chrome(self):
+        run_cmds("sudo apt-get update -y")
+        run_cmds("sudo apt-get upgrade -y")
+
+        chrome_install_base = "/tmp"
+        chrome_install_name = "google-chrome-stable_current_amd64.deb"
+        chrome_install_path = os.path.join(chrome_install_base,
+                                           chrome_install_name)
+
+        if os.path.exists(chrome_install_path):
+            delete_paths(chrome_install_path)
+
+        run_cmds([f"cd {chrome_install_base}",
+                  ("wget https://dl.google.com/linux/direct/"
+                   f"{chrome_install_name}"),
+                  f"sudo apt install ./{chrome_install_name}"])
+
+    def _install_chromedriver(self):
+        path = '/'.join(self.driver_path.split('/')[:-1])
+
+        if os.path.exists(self.driver_path):
+            delete_paths(self.driver_path)
+
+        # Installs chromedriver
+        # https://gist.github.com/mikesmullin/2636776#gistcomment-2608206
+        cmd = ("LATEST_VERSION=$(curl -s "
+               "https://chromedriver.storage.googleapis.com/LATEST_RELEASE) &&"
+               " wget -O /tmp/chromedriver.zip "
+               "https://chromedriver.storage.googleapis.com/$LATEST_VERSION/"
+               "chromedriver_linux64.zip && "
+               "unzip /tmp/chromedriver.zip "
+               f"chromedriver -d {path};")
+        run_cmds(cmd)
 
 ################################
 ### Opening Helper Functions ###

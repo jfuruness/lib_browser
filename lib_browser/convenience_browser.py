@@ -1,8 +1,7 @@
 import time
 
-from pynput.keyboard import Key, Controller
+from pynput.keyboard import Key
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from lib_config import Config
 
 from .browser import Browser
@@ -57,7 +56,7 @@ class ConvenienceBrowser(Browser):
     def open_blackboard(self, open_new=True):
         if open_new:
             self.open()
-        self.get(f"https://lms.uconn.edu/")
+        self.get("https://lms.uconn.edu/")
         if open_new or self.blackboard_logged_in is False:
             self.blackboard_login()
         # Wait for load, then jump to courses
