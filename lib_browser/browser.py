@@ -272,8 +272,8 @@ class Browser:
 ############################
 
     def _install_google_chrome(self):
-        run_cmds("sudo apt-get update -y")
-        run_cmds("sudo apt-get upgrade -y")
+        run_cmds(["sudo apt-get update -y"])
+        run_cmds(["sudo apt-get upgrade -y"])
 
         chrome_install_base = "/tmp"
         chrome_install_name = "google-chrome-stable_current_amd64.deb"
@@ -303,7 +303,7 @@ class Browser:
                "chromedriver_linux64.zip && "
                "unzip /tmp/chromedriver.zip "
                f"chromedriver -d {path};")
-        run_cmds(cmd)
+        run_cmds([cmd])
 
 ################################
 ### Opening Helper Functions ###
@@ -426,7 +426,10 @@ class Browser:
                       "{ele[i].parentNode.removeChild(ele[i]);}")
         self.browser.execute_script(javascript)
 
-    @retry(JavascriptException, tries=2, msg="Javascript err: {}", sleep=1)
+    @retry(JavascriptException,
+           tries=2,
+           msg="Javascript err: {}",
+           fail_func=lambda: time.sleep(1))
     def _show_numbers(self):
         javascript_strs = []
         elems = []
